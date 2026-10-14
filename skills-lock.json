@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "hedera-consensus-service": {
+      "source": "hedera-dev/hedera-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/native-services-js/skills/hedera-consensus-service/SKILL.md",
+      "computedHash": "ed493ea1e2873d637d5b265138b971ff4a883c5672d5f74f9bdc6f7722c46ed8"
+    },
     "hedera-token-service": {
       "source": "hedera-dev/hedera-skills",
       "sourceType": "github",
