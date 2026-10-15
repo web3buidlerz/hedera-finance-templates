@@ -25,4 +25,4 @@ npx create-scaffold-hbar@latest --template web3buidlerz/hedera-finance-templates
 Template code never lands on `main`.
 
 - `spikes/dvp` — proves atomic DvP with a scheduled two-leg `TransferTransaction`, including a no-KYC buyer where neither leg moves.
-- `spikes/ats-bond` — issues a bond through the Asset Tokenization Studio v8 testnet factory with a plain operator key over JSON-RPC (the ATS SDK has no private-key signer), resolving the bond configuration's latest version first (version 0 reverts with `VersionZero`), and reads the terms back.
+- `spikes/ats-bond` — issues a bond through the Asset Tokenization Studio v8 testnet factory with a plain operator key over JSON-RPC (the ATS SDK has no private-key signer), resolving the bond configuration's latest version first (version 0 reverts with `VersionZero`), grants the issuer `ROLE_ISSUER` and `ROLE_CONTROL_LIST` at deployment, turns the control list into an allowlist, issues to a listed investor and shows an unlisted one refused with `AccountIsBlocked`.

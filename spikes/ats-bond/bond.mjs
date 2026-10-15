@@ -9,6 +9,9 @@ const FACTORY_ID = "0.0.9213391"; // v8, from apps/ats/web/.env.example
 const RESOLVER_ID = "0.0.9212226";
 const BOND_CONFIG_ID = "0x" + "0".repeat(63) + "2"; // packages/ats/contracts/scripts/domain/constants.ts
 const DEFAULT_ADMIN_ROLE = ethers.ZeroHash;
+// constants/roles.sol: issue() needs ROLE_ISSUER, addToControlList() needs ROLE_CONTROL_LIST
+const ROLE_ISSUER = "0x5eeaf5602c75bf26e73b5206d0bd6ee82f621166255e5fd73cc06bc7bd84a95f";
+const ROLE_CONTROL_LIST = "0x6ed9a91e996c6475ecdc28ecbdbe9bd1122fc62b30cdbe6da8271884b51ec74d";
 
 const evmOf = async id => (await (await fetch(`${MIRROR}/contracts/${id}`)).json()).evm_address;
 
@@ -39,6 +42,15 @@ const bondAbi = [
   "function getNominalValue() view returns (uint256)",
   "function getNominalValueDecimals() view returns (uint8)",
   "function getNominalValueCurrency() view returns (bytes3)",
+  "function addToControlList(address) returns (bool)",
+  "function isInControlList(address) view returns (bool)",
+  "function getControlListType() view returns (bool)",
+  "function issue(address, uint256, bytes)",
+  "function balanceOf(address) view returns (uint256)",
+  "function totalSupply() view returns (uint256)",
+  "error ListedAccount(address account)",
+  "error UnlistedAccount(address account)",
+  "error AccountIsBlocked(address account)",
 ];
 
 const provider = new ethers.JsonRpcProvider("https://testnet.hashio.io/api");
@@ -67,7 +79,11 @@ const bondData = {
     maxSupply: 1_000_000n,
     resolverProxyConfiguration: { key: BOND_CONFIG_ID, version: BOND_CONFIG_VERSION },
     erc20MetadataInfo: { name: terms.name, symbol: terms.symbol, isin: terms.isin, decimals: 0 },
-    rbacs: [{ role: DEFAULT_ADMIN_ROLE, members: [wallet.address] }],
+    rbacs: [
+      { role: DEFAULT_ADMIN_ROLE, members: [wallet.address] },
+      { role: ROLE_ISSUER, members: [wallet.address] },
+      { role: ROLE_CONTROL_LIST, members: [wallet.address] },
+    ],
     externalPauses: [],
     externalControlLists: [],
     externalKycLists: [],
@@ -76,7 +92,7 @@ const bondData = {
     arePartitionsProtected: false,
     isMultiPartition: false,
     isControllable: true,
-    isWhiteList: false,
+    isWhiteList: true, // the control list is an allowlist: only listed accounts may hold
     clearingActive: false,
     internalKycActivated: false,
     erc20VotesActivated: false,
@@ -134,4 +150,24 @@ assert.equal(read.isin, terms.isin);
 assert.equal(read.currency, "USD");
 assert.equal(read.nominal, terms.nominalValue.toString());
 assert.equal(read.maturity, new Date(Number(terms.maturityDate) * 1000).toISOString());
+// --- Allowlist and distribution: only listed investors can receive bonds
+const issuer = new ethers.Contract(bondAddr, bondAbi, wallet);
+const listed = ethers.Wallet.createRandom().address;
+const unlisted = ethers.Wallet.createRandom().address;
+assert.equal(await issuer.getControlListType(), true, "control list should be an allowlist");
+await (await issuer.addToControlList(listed, { gasLimit: 400_000 })).wait();
+assert.equal(await issuer.isInControlList(listed), true);
+await (await issuer.issue(listed, 10n, "0x", { gasLimit: 1_500_000 })).wait();
+console.log("issued 10 to listed investor; balance", (await issuer.balanceOf(listed)).toString(), "| supply", (await issuer.totalSupply()).toString());
+assert.equal(await issuer.balanceOf(listed), 10n);
+
+let refused = null;
+try {
+  await issuer.issue.staticCall(unlisted, 10n, "0x", { gasLimit: 1_500_000 });
+} catch (e) {
+  refused = e.revert ? `${e.revert.name}(${e.revert.args.join(", ")})` : `${e.shortMessage} data=${e.data}`;
+}
+console.log("issue to unlisted investor:", refused);
+assert(refused, "issuing to an unlisted investor must be refused");
+
 console.log("\nATS bond spike passed");
