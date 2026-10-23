@@ -114,7 +114,24 @@ and the bond is `RUNNING`; a coupon is never paid twice.
 **A coupon the bond cannot afford is missed, not partly paid.** If the bond holds
 less stablecoin than a coupon needs, it pays nothing, emits a missed-coupon
 event, and schedules a retry of the same coupon one period later. Funding the
-bond before the retry makes the retry pay in full.
+bond before the retry makes the retry pay in full. One period later means one
+period after the coupon was *due*: a retry measured from the attempt would push
+every later coupon out by however late the attempt was.
+
+**A holder who cannot be paid does not stop the bond.** A holder who has not
+associated the stablecoin cannot be sent it, and that transfer fails. Every
+other holder is still paid, the coupon still advances, the next one is still
+scheduled, and what could not be delivered is recorded against that holder and
+kept by the bond. Their row shows `Owed <amount>` with a control that pays it,
+and the coupon history shows an `UNPAID` entry naming the coupon. Nothing is
+lost and nothing is stuck: a failed transfer must never revert the whole
+coupon, because that consumes the schedule without replacing it and the bond
+never pays anyone again.
+
+**A value that could not be read is not shown as a number.** The bond's HBAR
+balance is read from the chain; until that read lands it is unknown, not zero.
+The funding line says so, and `#start-schedule` stays disabled while it is
+unknown rather than claiming the bond is unfunded.
 
 **Scheduling can fail without stalling the bond.** Before scheduling, the bond
 checks `hasScheduleCapacity` and tries the following seconds if a second is
@@ -170,6 +187,18 @@ MetaMask wallet. It is still part of the feature and must be implemented as
 described.
 
 ## Constraints
+
+- Every bond route takes its address from the URL, and acts on it with the
+  issuer's key. It must refuse any address this desk did not issue: `fund` sends
+  stablecoin and HBAR to that address, and sizes the HBAR from the address's own
+  `couponCount`, so an unchecked address is an invitation to name a price. The
+  desk already records the bonds it created; that list is the allowlist. A
+  funding call also has an upper bound, so a mistyped amount cannot move the
+  desk's whole balance.
+- Every route is unauthenticated: anyone who can reach the server can spend the
+  operator account and move the desk's stablecoin. That is the bargain of a
+  localhost tutorial, and the reason this app is not meant to be reachable by
+  anyone else.
 
 - Contracts in `packages/foundry/contracts/`: `CouponBond` and
   `CouponBondFactory`. The factory's `createBond(...)` deploys a `CouponBond`
