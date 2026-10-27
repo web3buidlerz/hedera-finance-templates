@@ -31,7 +31,9 @@ const scaffoldConfig = {
 
   pollingInterval: 10000,
 
-  enableBurnerWallet: true,
+  // The coupon bond desk is MetaMask/WalletConnect only: investors sign nothing, so a burner
+  // wallet would only add a confusing extra "wallet" with no role in the flow.
+  enableBurnerWallet: false,
 
   rpcOverrides: {
     [chains.hedera.id]: process.env.NEXT_PUBLIC_HEDERA_MAINNET_RPC_URL || "https://mainnet.hashio.io/api",
